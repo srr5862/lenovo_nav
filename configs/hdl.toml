@@ -1,0 +1,15 @@
+# 跟雷神进行udp通信的config
+ip = "127.0.0.1"
+port = 9001
+recv_len = 1024
+queue_len = 200
+
+plane_ip = "127.0.0.1"
+plane_port = 9002
+plane_recv_len = 1024
+plane_queue_len = 200
+
+cam_trigger_ip = "127.0.0.1"
+cam_trigger_port = 9003
+cam_trigger_recv_len = 1024
+cam_trigger_queue_len = 200

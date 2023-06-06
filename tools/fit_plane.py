@@ -109,7 +109,7 @@ class FitPlane:
         re = np.vstack([means_1_yz, means_side, means_0_yz])
         re[:, 0] = 1
         self.write_to_json(re.tolist())
-        print("+++++++++")
+        
     def find_depth(self, ps, axis, descending=0):
         if descending==0:
             return ps[ps[:, axis].argsort()]

@@ -31,6 +31,7 @@ logger.add(sys.stderr, level="INFO")
 
 base_dir = "/home/vision/data/lenovo"
 
+
 class TargetCourse:
     def __init__(self, Lfc):
         self.old_nearest_point_index = None
@@ -180,12 +181,12 @@ class HikCapture(Thread):
         client = make_client()
 
         self.hik_capture_caller = client.get_caller("hik_camera_rpc_queue")
-        self.hik_light_caller = client.get_caller("light_rpc_queue")
-        self.hik_light_caller.control("set_ctrl_mode", mode=0)
+        # self.hik_light_caller = client.get_caller("light_rpc_queue")
+        # self.hik_light_caller.control("set_ctrl_mode", mode=0)
 #self.hik_light_caller.control("set_strobe_time", time=990, unit="us")
 
-        self.hik_light_caller.control("open")
-        self.hik_light_caller.control("close")
+        # self.hik_light_caller.control("open")
+        # self.hik_light_caller.control("close")
 
         self.hik_capture_caller.open(["camera1","camera2","camera3","camera4","camera5"])
         self.hik_capture_caller.enable_trigger()
@@ -218,11 +219,11 @@ class HikCapture(Thread):
                 pos_list = []
 
                 if t == 0:
-                    for i in [2, 4, 6, 7]:
+                    for i in [2, 4, 6, 8]:
                         pos_list.append([(i * l) / m,None] if name == "A" else [None, (i * w) / m])
                     re_list.append(pos_list)
                 else:
-                    for i in [7, 6, 4, 2]:
+                    for i in [8, 6, 4, 2]:
                         pos_list.append([(i * l) / m,None] if name == "A" else [None,(i * w) / m])
                     re_list.append(pos_list)
         return re_list
@@ -231,11 +232,10 @@ class HikCapture(Thread):
     def camera_trigger(self,path):
         os.makedirs(path, exist_ok=True)
         
-#self.hik_light_caller.control("open")
-        green_spawn(self.hik_light_caller.control, "open")
-        time.sleep(0.2)
+        # green_spawn(self.hik_light_caller.control, "open")
+        # time.sleep(0.2)
         self.hik_capture_caller.trigger(["camera1","camera2","camera3","camera4","camera5"])
-        green_spawn(self.hik_light_caller.control, "close")
+        # green_spawn(self.hik_light_caller.control, "close")
         self.hik_capture_caller.save_images(path=path)
 
     def send_hik_result(self,plane_name,trigger_name,image_path):
@@ -311,7 +311,7 @@ class RobotControl(Thread):
 
         self.force_stop = False
 
-        self.vel = 40
+        self.vel = 100
         self.vel = self.get_curr_v()
 
         self.Twc = None
@@ -346,11 +346,11 @@ class RobotControl(Thread):
 
     def get_curr_v(self, gap=None):
         if gap is None:
-            return 120
+            return 140
         if abs(gap) < 10:
-            return 150
+            return 160
         else:
-            return 130
+            return 140
 
     def update_task(self, task):
         self.curr_task = task

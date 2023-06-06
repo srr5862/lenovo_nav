@@ -24,8 +24,10 @@ from cv_bridge import CvBridge
 from threading import Thread
 from utils import now,today
 
+
 w,l = 1.0, 1.2
 base_dir = "/home/vision/data/lenovo"
+
 
 class TriggerSocketClient:
     def __init__(self):
@@ -76,7 +78,7 @@ class CheckPosition:
         self.trigger_plane_name = None
         
         self.kinect_trigger_info = []
-        self.capture_dist = 0.20
+        self.capture_dist = 0.10
 
         self.set_kinect_trigger_info()
         

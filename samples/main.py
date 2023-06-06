@@ -32,7 +32,7 @@ from glob import glob
 from tools.utils import rigid_transform_3D
 from tools.control_xianfa import RobotControl
 
-BASE_LEN = 1.5
+BASE_LEN = 1.4
 SCALE_BASE = 0.3
 
 class MainControl:

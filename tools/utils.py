@@ -3,6 +3,8 @@ import numpy as np
 import numpy.linalg as npl
 import time
 
+
+
 def rigid_transform_3D(pc1, pc2):
     assert len(pc1) == len(pc2)
     N = pc1.shape[0]
@@ -37,4 +39,5 @@ def now():
     return datetime.now().strftime("%y%m%dT%H%M%SS%f")[:-3]
 
 def today():
-    return time.strftime("%Y%m%d",time.localtime()) 
+    return time.strftime("%Y%m%d",time.localtime())
+

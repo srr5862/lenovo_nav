@@ -268,7 +268,7 @@ class HikCapture(Thread):
 
                 if not is_success and flag:
                     gap = cur_pose[info["acc_control"]] - info["trigger_pos"][info["acc_control"]]
-                    if abs(gap) < 0.1:
+                    if abs(gap) < 0.07:
                         dir_name = info["plane_name"] + str(info["trigger_name"])
                         whole_path = osp.join(base_dir,dir_name)
                         
@@ -346,11 +346,11 @@ class RobotControl(Thread):
 
     def get_curr_v(self, gap=None):
         if gap is None:
-            return 140
-        if abs(gap) < 10:
+            return 180
+        if abs(gap) < 5:
             return 160
         else:
-            return 140
+            return 180
 
     def update_task(self, task):
         self.curr_task = task
@@ -419,7 +419,7 @@ class RobotControl(Thread):
             self.hik_capture_thread.update(self.state.rear_x, self.state.rear_y)
 
     def move(self, _vel, _angle_left_right, is_rotate=0):
-        _angle_left_right *= 2500/(25*2)
+        _angle_left_right *= 2500/(30*2)
 
         self.truck_caller.xianfa_move(_vel, _angle_left_right, is_rotate)
 

@@ -25,6 +25,7 @@ from threading import Thread
 from utils import now,today
 
 
+
 w,l = 1.0, 1.2
 base_dir = "/home/vision/data/lenovo"
 
@@ -78,7 +79,7 @@ class CheckPosition:
         self.trigger_plane_name = None
         
         self.kinect_trigger_info = []
-        self.capture_dist = 0.10
+        self.capture_dist = 0.05
 
         self.set_kinect_trigger_info()
         
@@ -126,7 +127,7 @@ class CheckPosition:
         ori_depth = cv2.rotate(ori_depth,cv2.ROTATE_90_CLOCKWISE) 
         
         os.makedirs(whole_path,exist_ok=True)
-#       print(f"{whole_path}/{timestamp}_color.jpg")
+        
         cv2.imwrite(f"{whole_path}/{timestamp}_color.jpg",image)
         cv2.imwrite(f"{whole_path}/{timestamp}_rdepth.png",ori_depth)
     
@@ -145,7 +146,7 @@ class CheckPosition:
                 
             if not is_success and flag and capture_thread.get() is not None:
                 cur_pose = capture_thread.get()
-#               print("cur_pose",cur_pose)
+                
                 gap = abs(cur_pose[acc_control] - pos_info["trigger_pos"][acc_control])
                 print("gap:",gap)
                 

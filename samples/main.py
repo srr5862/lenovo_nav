@@ -69,6 +69,7 @@ class MainControl:
 #self.verify_points(tasks)
 #for task in tasks:
         self.simu.update_task(task)
+        print("resume_task")
         self.simu.resume_task()
         self.simu.start = True
 

@@ -268,7 +268,7 @@ class HikCapture(Thread):
 
                 if not is_success and flag:
                     gap = cur_pose[info["acc_control"]] - info["trigger_pos"][info["acc_control"]]
-                    if abs(gap) < 0.07:
+                    if abs(gap) < 0.05:
                         dir_name = info["plane_name"] + str(info["trigger_name"])
                         whole_path = osp.join(base_dir,dir_name)
                         

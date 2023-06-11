@@ -23,7 +23,7 @@ from sensor_msgs.msg import CameraInfo
 from cv_bridge import CvBridge
 from threading import Thread
 from utils import now,today
-
+from loguru import logger
 
 
 w,l = 1.0, 1.2
@@ -80,6 +80,7 @@ class CheckPosition:
         
         self.kinect_trigger_info = []
         self.capture_dist = 0.05
+        self.mean_val = 160
 
         self.set_kinect_trigger_info()
         
@@ -150,13 +151,20 @@ class CheckPosition:
                 gap = abs(cur_pose[acc_control] - pos_info["trigger_pos"][acc_control])
                 print("gap:",gap)
                 
-                if gap < self.capture_dist: 
-                    pos_info["is_success"] = True
+                if gap < self.capture_dist:
                     self.trigger_plane_name = pos_info["trigger_plane"] + str(pos_info["trigger_name"])
+                    
                     image = self.cv_bridge.imgmsg_to_cv2(img,desired_encoding="bgr8")
-                    re_depth = self.cv_bridge.imgmsg_to_cv2(re_depth,desired_encoding="16UC1")            
-            
-                    self.trans_curframe_to_img(image,re_depth,now())
+                    re_depth = self.cv_bridge.imgmsg_to_cv2(re_depth,desired_encoding="16UC1")        
+                    
+                    image_mean = cv2.mean(image)[0]
+                    if image_mean > self.mean_val:
+                        logger.error("overexposure!!!")
+                        break
+                    else:
+                        self.trans_curframe_to_img(image,re_depth,now())
+                        pos_info["is_success"] = True
+                    
                 else:
                     ...
 

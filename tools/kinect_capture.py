@@ -20,13 +20,14 @@ import message_filters
 from std_msgs.msg import Header
 from sensor_msgs.msg import Image
 from sensor_msgs.msg import CameraInfo
+from std_msgs.msg import String
+
 from cv_bridge import CvBridge
 from threading import Thread
 from utils import now,today
 from loguru import logger
 
 
-w,l = 1.0, 1.2
 base_dir = "/home/vision/data/lenovo"
 
 
@@ -75,12 +76,14 @@ class CheckPosition:
     def __init__(self):
         self.cv_bridge = CvBridge()
 
+        
         self.trigger_plane_name_list = ["A","B","C","D"]
         self.trigger_plane_name = None
         
         self.kinect_trigger_info = []
         self.capture_dist = 0.05
         self.mean_val = 160
+        self.l, self.w = self.load_wl()
 
         self.set_kinect_trigger_info()
         
@@ -88,6 +91,47 @@ class CheckPosition:
         self.depsub = message_filters.Subscriber("/depth_to_rgb/image_raw",Image)
         self.ts = message_filters.ApproximateTimeSynchronizer([self.imgsub,self.depsub],100000,0.01,allow_headerless=True)
         self.ts.registerCallback(self.capturecb)
+        
+        self.date = None
+        self.timestamp = None
+        self.whole_dir = None
+        
+        self.stamp_pub = rospy.Publisher("/timestamp",String,queue_size=1)
+        
+        
+        
+    def set_date(self):
+        self.timestamp = now()
+        self.date = self.timestamp[:6] 
+        self.whole_dir = osp.join(osp.join(base_dir,self.date),self.timestamp)
+
+        check_dir = osp.join(osp.join(osp.join(base_dir,self.date),"check"),self.timestamp)
+        
+        while not osp.exists(check_dir):
+            self.stamp_pub.publish(self.timestamp)
+            time.sleep(0.2)
+            
+               
+        
+
+    def load_wl(self):
+        fp = osp.join(cur_d,"../configs/wl.json")
+        if osp.exists(fp):
+            os.remove(fp)
+            
+        while 1:
+            print("wait",time.time())
+            if osp.exists(fp):
+                break
+            time.sleep(0.1)
+            
+        with open(fp,'r') as f:
+            data = json.load(f)
+            l, w = data["l"], data["w"]
+        
+        return l, w
+        
+
 
     def set_kinect_trigger_info(self):
         for idx,name in enumerate(self.trigger_plane_name_list):
@@ -95,7 +139,7 @@ class CheckPosition:
             for j in range(4):
                 trigger_info = {
                     "trigger_plane": name,
-                    "trigger_pos": self.compute_trigger_pos(w,l)[idx][j],
+                    "trigger_pos": self.compute_trigger_pos(self.w,self.l)[idx][j],
                     "trigger_name": j+1,
                     "acc_control": 0 if idx % 2 == 0 else 1,
                     "is_success": False
@@ -122,7 +166,7 @@ class CheckPosition:
         return re_list
 
     def trans_curframe_to_img(self,image,ori_depth,timestamp):
-        whole_path = osp.join(base_dir,self.trigger_plane_name)
+        whole_path = osp.join(self.whole_dir,self.trigger_plane_name)
 
         image = cv2.rotate(image,cv2.ROTATE_90_CLOCKWISE) 
         ori_depth = cv2.rotate(ori_depth,cv2.ROTATE_90_CLOCKWISE) 

@@ -22,15 +22,21 @@ import cv2
 import numpy as np
 import numpy.linalg as npl
 import socket
-from utils import now,today
+import rospy
+import glob
 
+from utils import now,today
+from std_msgs.msg import String
 from tools.path import PathManage
 from loguru import logger
+
 logger.remove()
 logger.add(sys.stderr, level="INFO")
 
 base_dir = "/home/vision/data/lenovo"
 
+timestamp = None
+date = None
 
 class TargetCourse:
     def __init__(self, Lfc):
@@ -166,7 +172,26 @@ class TriggerSocketServer(Thread):
 
     def update_pos(self, pos):
         self.pos = pos
-                
+        
+
+class SetStamp:
+    def __init__(self):
+        rospy.init_node("setDir",anonymous=True)
+        self.stampsub = rospy.Subscriber("/timestamp",String,self.stampcb,queue_size=1)
+    
+    def stampcb(self,msg):
+        global timestamp
+        global date
+        
+        timestamp = msg.data
+        date = timestamp[:6]
+        
+        check_dir = osp.join(osp.join(osp.join(base_dir,date),"check"),timestamp)
+        os.makedirs(check_dir,exist_ok=True)
+        
+        if timestamp  is not None:
+            rospy.signal_shutdown("success recived")
+        
 
 class HikCapture(Thread):
     def __init__(self, interval, w, l):
@@ -179,20 +204,53 @@ class HikCapture(Thread):
         
         self.interval = interval
         client = make_client()
+        
+        self.img_path = osp.join(osp.join(base_dir,date),timestamp)
+        self.check_path = osp.join(osp.join(osp.join(base_dir,date),"check",),timestamp)
+        
 
         self.hik_capture_caller = client.get_caller("hik_camera_rpc_queue")
-        # self.hik_light_caller = client.get_caller("light_rpc_queue")
-        # self.hik_light_caller.control("set_ctrl_mode", mode=0)
-#self.hik_light_caller.control("set_strobe_time", time=990, unit="us")
-
-        # self.hik_light_caller.control("open")
-        # self.hik_light_caller.control("close")
+        self.pubber = client.get_pubber("controller_event_queue")
 
         self.hik_capture_caller.open(["camera1","camera2","camera3","camera4","camera5"])
         self.hik_capture_caller.enable_trigger()
         self.hik_capture_caller.start()
         self.tx = None
         logger.error("hik start suc")
+        
+    def pub_hik(self):
+        barcode_req = self.gen_req(self.img_path,self.check_path)
+        self.pubber('proc_barcode',barcode_req)
+        logger.info("success pub")
+        
+    def gen_req(img_d, check_d):
+        req = {"jsonrpc": "2.0", "method": "infer", "params": {}, "status": None, "id": 1}
+        img_p_s = glob(osp.join(img_d, "*"))
+        img_p_s = sorted(img_p_s)
+        for img_p in img_p_s:
+            img_p = osp.abspath(img_p)
+            if "camera1" in img_p:
+                req["params"]["cam1"] = img_p
+                continue
+            if "camera2" in img_p:
+                req["params"]["cam2"] = img_p
+                continue
+            
+            if "camera3" in img_p:
+                req["params"]["cam3"] = img_p
+                continue
+            
+            if "camera4" in img_p:
+                req["params"]["cam4"] = img_p
+                continue
+            
+            if "camera5" in img_p:
+                req["params"]["cam5"] = img_p
+                continue
+            
+        req["params"]["check_dir"] = osp.abspath(check_d)
+
+        return req
         
     def set_hik_capture_info(self):
         for idx, name in enumerate(self.plane_name_list):
@@ -238,12 +296,6 @@ class HikCapture(Thread):
         # green_spawn(self.hik_light_caller.control, "close")
         self.hik_capture_caller.save_images(path=path)
 
-    def send_hik_result(self,plane_name,trigger_name,image_path):
-        return {
-            "location": f"hik_{plane_name + trigger_name}",
-            "images": [files for files in os.listdir(image_path)]
-        }
-    
     def update(self, tx, ty):
         self.tx = tx
         self.ty = ty
@@ -270,16 +322,33 @@ class HikCapture(Thread):
                     gap = cur_pose[info["acc_control"]] - info["trigger_pos"][info["acc_control"]]
                     if abs(gap) < 0.05:
                         dir_name = info["plane_name"] + str(info["trigger_name"])
-                        whole_path = osp.join(base_dir,dir_name)
+                        whole_path = osp.join(osp.join(osp.join(base_dir,date),timestamp),dir_name)
                         
                         info["is_success"] = True
                         
                         self.camera_trigger(whole_path)
+                        
+                        self.pub_hik(whole_path)
+                        if dir_name in ["A2","B2","C2","D2"]:
+                            time.sleep(1)
+                            
+                            img_color_d = glob(osp.join(whole_path,"*color.jpg"))
+                            img_redepth_d = glob(osp.join(whole_path,"*depth.png"))
+                            
+                            req_dict = {
+                                "color_img_p": img_color_d,
+                                "redepth_img_p": img_redepth_d,
+                                "check_d": self.check_path
+                            }
+                            self.pubber('proc_box',req_dict)
 
                         # self.control_rpc.send_res(self.send_hik_result(info["plane_name"],str(info["trigger_name"]),whole_path))
                         
                     else:
                         print("not trigger pos") 
+                        
+
+
 
 class RobotControl(Thread):
     def __init__(self, interval, config_f):
@@ -316,7 +385,9 @@ class RobotControl(Thread):
 
         self.Twc = None
         self.T_c_car = None
-
+        
+        self.set_stamp = SetStamp()
+         
         self.hik_capture_thread = HikCapture(0.05, self.road_w, self.road_l)
         self.hik_capture_thread.daemon = True
         self.hik_capture_thread.start()
@@ -326,7 +397,7 @@ class RobotControl(Thread):
         
         cx, cy = p[:, 0], p[:, 1]
         self.target_course.update(cx=cx, cy=cy)
-
+        
     def update_state_pose(self, pose, is_pub=False):
         pos = pose['pos']
         turn_angle = pose['angle']

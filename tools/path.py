@@ -24,6 +24,13 @@ class PathManage:
         self.l, self.w, self.Twc = self.load_twc()
         print("length:", self.l, 'width:', self.w, '\n',self.Twc)
         self.T_c_car = None
+        self.wtrite_to_json(self.l,self.w)
+
+    def wtrite_to_json(self,l,w):
+        dic = {"l":self.l,"w":self.w}
+        with open(osp.join(cur_d,"../configs/wl.json"),"w") as f:
+            json.dump(dic,f,indent=2)
+        
 
     def load_twc(self):
         fp = osp.join(cur_d, "../configs/points.json")

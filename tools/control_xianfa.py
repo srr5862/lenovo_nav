@@ -1,5 +1,6 @@
 import os
 import os.path as osp
+from re import S
 import sys
 from typing import Any
 
@@ -23,7 +24,7 @@ import numpy as np
 import numpy.linalg as npl
 import socket
 import rospy
-import glob
+from glob import glob
 
 from utils import now,today
 from std_msgs.msg import String
@@ -35,8 +36,6 @@ logger.add(sys.stderr, level="INFO")
 
 base_dir = "/home/vision/data/lenovo"
 
-timestamp = None
-date = None
 
 class TargetCourse:
     def __init__(self, Lfc):
@@ -167,7 +166,7 @@ class TriggerSocketServer(Thread):
             if self.pos is None:
                 continue
             else:
-                logger.error("send pos")
+                # logger.error("send pos")
                 self.server.sendto(str(self.pos).encode(),self.ADDR)
 
     def update_pos(self, pos):
@@ -175,40 +174,47 @@ class TriggerSocketServer(Thread):
         
 
 class SetStamp:
-    def __init__(self):
-        rospy.init_node("setDir",anonymous=True)
-        self.stampsub = rospy.Subscriber("/timestamp",String,self.stampcb,queue_size=1)
     
-    def stampcb(self,msg):
-        global timestamp
-        global date
+    timestamp = None
+    date = None
+
+    def __init__(self):
+        rospy.init_node("setDir", anonymous=True)
+        self.stampsub = rospy.Subscriber("/timestamp", String, self.stampcb, queue_size=1)
+
+    def stampcb(self, msg):
+        self.timestamp = msg.data
+        self.date = self.timestamp[:6]
         
-        timestamp = msg.data
-        date = timestamp[:6]
+        logger.info(self.timestamp)
         
-        check_dir = osp.join(osp.join(osp.join(base_dir,date),"check"),timestamp)
-        os.makedirs(check_dir,exist_ok=True)
-        
-        if timestamp  is not None:
-            rospy.signal_shutdown("success recived")
+        check_dir = osp.join(base_dir, self.date, "check", self.timestamp)
+        os.makedirs(check_dir, exist_ok=True)
+        os.makedirs(osp.join(base_dir, self.date, self.timestamp), exist_ok=True)
+        logger.info("success create dirs")
         
 
 class HikCapture(Thread):
-    def __init__(self, interval, w, l):
+    def __init__(self, interval, w, l, s, d):
         Thread.__init__(self)
 
         self.hik_capture_pos = []
         self.plane_name_list = ['A', 'B', 'C', 'D']
         self.road_w, self.road_l = w, l
-        self.set_hik_capture_info()   
-        
+        self.set_hik_capture_info()          
         self.interval = interval
+
         client = make_client()
         
-        self.img_path = osp.join(osp.join(base_dir,date),timestamp)
-        self.check_path = osp.join(osp.join(osp.join(base_dir,date),"check",),timestamp)
-        
+        self.img_path = None
+        self.check_path = None
 
+        self.timestamp = s
+        self.date = d
+        
+        dir = self.get_latest_folder(base_dir)
+        logger.error(dir)
+        
         self.hik_capture_caller = client.get_caller("hik_camera_rpc_queue")
         self.pubber = client.get_pubber("controller_event_queue")
 
@@ -216,14 +222,19 @@ class HikCapture(Thread):
         self.hik_capture_caller.enable_trigger()
         self.hik_capture_caller.start()
         self.tx = None
-        logger.error("hik start suc")
+        self.ty = None
         
-    def pub_hik(self):
-        barcode_req = self.gen_req(self.img_path,self.check_path)
+        logger.error("hik start suc!!!!!!!!!!!")
+        
+    def pub_hik(self, timestamp, date, dirname):
+        img_path = osp.join(base_dir, date, timestamp)
+        check_path = osp.join(base_dir, date,"check",timestamp)
+        
+        barcode_req = self.gen_req(osp.join(img_path, dirname),check_path)
         self.pubber('proc_barcode',barcode_req)
         logger.info("success pub")
         
-    def gen_req(img_d, check_d):
+    def gen_req(self, img_d, check_d):
         req = {"jsonrpc": "2.0", "method": "infer", "params": {}, "status": None, "id": 1}
         img_p_s = glob(osp.join(img_d, "*"))
         img_p_s = sorted(img_p_s)
@@ -251,6 +262,11 @@ class HikCapture(Thread):
         req["params"]["check_dir"] = osp.abspath(check_d)
 
         return req
+
+    def get_latest_folder(self,directory):
+        folders = [folder for folder in os.listdir(directory) if osp.isdir(osp.join(directory, folder))]
+        latest_folder = max(folders, key=lambda folder: osp.getctime(osp.join(directory, folder)))
+        return latest_folder
         
     def set_hik_capture_info(self):
         for idx, name in enumerate(self.plane_name_list):
@@ -287,13 +303,10 @@ class HikCapture(Thread):
         return re_list
     
     
-    def camera_trigger(self,path):
+    def camera_trigger(self, path):
         os.makedirs(path, exist_ok=True)
         
-        # green_spawn(self.hik_light_caller.control, "open")
-        # time.sleep(0.2)
         self.hik_capture_caller.trigger(["camera1","camera2","camera3","camera4","camera5"])
-        # green_spawn(self.hik_light_caller.control, "close")
         self.hik_capture_caller.save_images(path=path)
 
     def update(self, tx, ty):
@@ -319,16 +332,20 @@ class HikCapture(Thread):
                     flag = names[i-1]['is_success'] is True
 
                 if not is_success and flag:
-                    gap = cur_pose[info["acc_control"]] - info["trigger_pos"][info["acc_control"]]
-                    if abs(gap) < 0.05:
+                    gap = float(cur_pose[info["acc_control"]] - info["trigger_pos"][info["acc_control"]])
+                    logger.error(gap)
+                    if abs(gap) < 0.10:
+                        date = self.get_latest_folder(base_dir)
+                        timestamp = self.get_latest_folder(osp.join(base_dir,date))
                         dir_name = info["plane_name"] + str(info["trigger_name"])
-                        whole_path = osp.join(osp.join(osp.join(base_dir,date),timestamp),dir_name)
+                        whole_path = osp.join(base_dir, date, timestamp, dir_name)
                         
+                        logger.info(whole_path)
                         info["is_success"] = True
                         
                         self.camera_trigger(whole_path)
                         
-                        self.pub_hik(whole_path)
+                        self.pub_hik(timestamp,date,dir_name)
                         if dir_name in ["A2","B2","C2","D2"]:
                             time.sleep(1)
                             
@@ -341,14 +358,8 @@ class HikCapture(Thread):
                                 "check_d": self.check_path
                             }
                             self.pubber('proc_box',req_dict)
-
-                        # self.control_rpc.send_res(self.send_hik_result(info["plane_name"],str(info["trigger_name"]),whole_path))
-                        
                     else:
                         print("not trigger pos") 
-                        
-
-
 
 class RobotControl(Thread):
     def __init__(self, interval, config_f):
@@ -357,6 +368,8 @@ class RobotControl(Thread):
         self.curr_task = {
             'is_pub': False
         }
+
+        self.setstamp = SetStamp()
 
         self.pp = PathManage()
 
@@ -386,9 +399,9 @@ class RobotControl(Thread):
         self.Twc = None
         self.T_c_car = None
         
-        self.set_stamp = SetStamp()
-         
-        self.hik_capture_thread = HikCapture(0.05, self.road_w, self.road_l)
+        time.sleep(1.5)
+        
+        self.hik_capture_thread = HikCapture(0.05, self.road_w, self.road_l,self.setstamp.timestamp,self.setstamp.date)
         self.hik_capture_thread.daemon = True
         self.hik_capture_thread.start()
 
@@ -450,7 +463,7 @@ class RobotControl(Thread):
 
                 __curr_location_0 = pose['pos'][0] - self.curr_task['end'][0]
                 __curr_location_1 = pose['pos'][1] - self.curr_task['end'][1]
-                if abs(__curr_location_0) + abs(__curr_location_1) < 0.05:
+                if abs(__curr_location_0) + abs(__curr_location_1) < 0.01:
                     self.stop()
                     self.is_updated = False
                     logger.info('to final!')
@@ -499,5 +512,5 @@ class RobotControl(Thread):
     
     def turn_spawn(self, gap):
         self.this_isalive = True
-        logger.info(f"{'='*5}\t, {gap}, {self.get_curr_v(gap=gap)}\t, \t")
+        # logger.info(f"{'='*5}\t, {gap}, {self.get_curr_v(gap=gap)}\t, \t")
         self.move(self.get_curr_v(gap=gap), gap, 0)

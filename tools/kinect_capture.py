@@ -25,16 +25,13 @@ from std_msgs.msg import String
 from cv_bridge import CvBridge
 from threading import Thread
 from utils import now,today
-from loguru import logger
-
 
 base_dir = "/home/vision/data/lenovo"
 
-
 class TriggerSocketClient:
     def __init__(self):
-        self.config_socket = toml.load(osp.join(cur_d,"../configs/hdl.toml"))
-        self.client = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+        self.config_socket = toml.load(osp.join(cur_d, "../configs/hdl.toml"))
+        self.client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.addr = (self.config_socket['cam_trigger_ip'], self.config_socket['cam_trigger_port'])
         self.client.bind(self.addr)
 
@@ -75,13 +72,12 @@ capture_thread.start()
 class CheckPosition:
     def __init__(self):
         self.cv_bridge = CvBridge()
-
         
         self.trigger_plane_name_list = ["A","B","C","D"]
         self.trigger_plane_name = None
         
         self.kinect_trigger_info = []
-        self.capture_dist = 0.05
+        self.capture_dist = 0.10
         self.mean_val = 160
         self.l, self.w = self.load_wl()
 
@@ -97,22 +93,18 @@ class CheckPosition:
         self.whole_dir = None
         
         self.stamp_pub = rospy.Publisher("/timestamp",String,queue_size=1)
-        
-        
+        self.set_date()
         
     def set_date(self):
         self.timestamp = now()
         self.date = self.timestamp[:6] 
-        self.whole_dir = osp.join(osp.join(base_dir,self.date),self.timestamp)
+        self.whole_dir = osp.join(base_dir, self.date, self.timestamp)
 
-        check_dir = osp.join(osp.join(osp.join(base_dir,self.date),"check"),self.timestamp)
+        check_dir = osp.join(base_dir, self.date, "check", self.timestamp)
         
         while not osp.exists(check_dir):
             self.stamp_pub.publish(self.timestamp)
             time.sleep(0.2)
-            
-               
-        
 
     def load_wl(self):
         fp = osp.join(cur_d,"../configs/wl.json")
@@ -128,10 +120,8 @@ class CheckPosition:
         with open(fp,'r') as f:
             data = json.load(f)
             l, w = data["l"], data["w"]
-        
+                    
         return l, w
-        
-
 
     def set_kinect_trigger_info(self):
         for idx,name in enumerate(self.trigger_plane_name_list):
@@ -154,7 +144,6 @@ class CheckPosition:
         for t in range(2):
             for name in trigger_plane:
                 pos_list = []
-
                 if t == 0:
                     for i in [2, 4, 6, 8]:
                         pos_list.append([(i * l) / m,None] if name == "A" else [None, (i * w) / m])
@@ -203,12 +192,11 @@ class CheckPosition:
                     
                     image_mean = cv2.mean(image)[0]
                     if image_mean > self.mean_val:
-                        logger.error("overexposure!!!")
+                        print("overexposure!!!")
                         break
                     else:
                         self.trans_curframe_to_img(image,re_depth,now())
                         pos_info["is_success"] = True
-                    
                 else:
                     ...
 

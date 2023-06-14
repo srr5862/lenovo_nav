@@ -100,7 +100,8 @@ class CheckPosition:
         self.date = self.timestamp[:6] 
         self.whole_dir = osp.join(base_dir, self.date, self.timestamp)
 
-        check_dir = osp.join(base_dir, self.date, "check", self.timestamp)
+        check_dir = osp.join(base_dir, "check" ,self.date, self.timestamp)
+        os.makedirs(check_dir,exist_ok=True)
         
         while not osp.exists(check_dir):
             self.stamp_pub.publish(self.timestamp)
@@ -149,7 +150,7 @@ class CheckPosition:
                         pos_list.append([(i * l) / m,None] if name == "A" else [None, (i * w) / m])
                     re_list.append(pos_list)
                 else:
-                    for i in [8, 6, 4, 2]:
+                    for i in [7, 6, 4, 2]:
                         pos_list.append([(i * l) / m,None] if name == "A" else [None,(i * w) / m])
                     re_list.append(pos_list)
         return re_list

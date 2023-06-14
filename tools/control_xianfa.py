@@ -174,10 +174,9 @@ class TriggerSocketServer(Thread):
         
 
 class SetStamp:
-    
     timestamp = None
     date = None
-
+    
     def __init__(self):
         rospy.init_node("setDir", anonymous=True)
         self.stampsub = rospy.Subscriber("/timestamp", String, self.stampcb, queue_size=1)
@@ -193,7 +192,6 @@ class SetStamp:
         os.makedirs(osp.join(base_dir, self.date, self.timestamp), exist_ok=True)
         logger.info("success create dirs")
         
-
 class HikCapture(Thread):
     def __init__(self, interval, w, l, s, d):
         Thread.__init__(self)
@@ -201,16 +199,16 @@ class HikCapture(Thread):
         self.hik_capture_pos = []
         self.plane_name_list = ['A', 'B', 'C', 'D']
         self.road_w, self.road_l = w, l
-        self.set_hik_capture_info()          
+        self.set_hik_capture_info()  
+        
         self.interval = interval
-
         client = make_client()
         
         self.img_path = None
         self.check_path = None
-
-        self.timestamp = s
+        
         self.date = d
+        self.timestamp = s
         
         dir = self.get_latest_folder(base_dir)
         logger.error(dir)
@@ -224,13 +222,12 @@ class HikCapture(Thread):
         self.tx = None
         self.ty = None
         
-        logger.error("hik start suc!!!!!!!!!!!")
         
-    def pub_hik(self, timestamp, date, dirname):
+    def pub_hik(self,timestamp,date,dirname):
         img_path = osp.join(base_dir, date, timestamp)
-        check_path = osp.join(base_dir, date,"check",timestamp)
+        check_path = osp.join(base_dir, "check", date, timestamp)
         
-        barcode_req = self.gen_req(osp.join(img_path, dirname),check_path)
+        barcode_req = self.gen_req(osp.join(img_path,dirname),check_path)
         self.pubber('proc_barcode',barcode_req)
         logger.info("success pub")
         
@@ -264,7 +261,7 @@ class HikCapture(Thread):
         return req
 
     def get_latest_folder(self,directory):
-        folders = [folder for folder in os.listdir(directory) if osp.isdir(osp.join(directory, folder))]
+        folders = [folder for folder in os.listdir(directory) if osp.isdir(osp.join(directory, folder)) and folder != "check"]
         latest_folder = max(folders, key=lambda folder: osp.getctime(osp.join(directory, folder)))
         return latest_folder
         
@@ -297,7 +294,7 @@ class HikCapture(Thread):
                         pos_list.append([(i * l) / m,None] if name == "A" else [None, (i * w) / m])
                     re_list.append(pos_list)
                 else:
-                    for i in [8, 6, 4, 2]:
+                    for i in [7, 6, 4, 2]:
                         pos_list.append([(i * l) / m,None] if name == "A" else [None,(i * w) / m])
                     re_list.append(pos_list)
         return re_list
@@ -316,7 +313,6 @@ class HikCapture(Thread):
     def run(self):
         while True:
             time.sleep(self.interval)
-            logger.info('hik checking')
             if self.tx is None:
                 continue
             cur_pose = [self.tx, self.ty]
@@ -337,9 +333,11 @@ class HikCapture(Thread):
                     if abs(gap) < 0.10:
                         date = self.get_latest_folder(base_dir)
                         timestamp = self.get_latest_folder(osp.join(base_dir,date))
+                        logger.info(date)
+                        logger.info(timestamp)
+                        
                         dir_name = info["plane_name"] + str(info["trigger_name"])
                         whole_path = osp.join(base_dir, date, timestamp, dir_name)
-                        
                         logger.info(whole_path)
                         info["is_success"] = True
                         
@@ -358,8 +356,15 @@ class HikCapture(Thread):
                                 "check_d": self.check_path
                             }
                             self.pubber('proc_box',req_dict)
+                            logger.error("sucess push kinect!!!!!!!!!!!!!!!")
+
+                        # self.control_rpc.send_res(self.send_hik_result(info["plane_name"],str(info["trigger_name"]),whole_path))
+                        
                     else:
                         print("not trigger pos") 
+                        
+
+
 
 class RobotControl(Thread):
     def __init__(self, interval, config_f):
@@ -368,9 +373,8 @@ class RobotControl(Thread):
         self.curr_task = {
             'is_pub': False
         }
-
         self.setstamp = SetStamp()
-
+        
         self.pp = PathManage()
 
         self.road_w, self.road_l = self.pp.w, self.pp.l
@@ -399,7 +403,8 @@ class RobotControl(Thread):
         self.Twc = None
         self.T_c_car = None
         
-        time.sleep(1.5)
+        time.sleep(2)
+        
         
         self.hik_capture_thread = HikCapture(0.05, self.road_w, self.road_l,self.setstamp.timestamp,self.setstamp.date)
         self.hik_capture_thread.daemon = True
@@ -463,7 +468,7 @@ class RobotControl(Thread):
 
                 __curr_location_0 = pose['pos'][0] - self.curr_task['end'][0]
                 __curr_location_1 = pose['pos'][1] - self.curr_task['end'][1]
-                if abs(__curr_location_0) + abs(__curr_location_1) < 0.01:
+                if abs(__curr_location_0) + abs(__curr_location_1) < 0.05:
                     self.stop()
                     self.is_updated = False
                     logger.info('to final!')

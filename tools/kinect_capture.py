@@ -77,7 +77,7 @@ class CheckPosition:
         self.trigger_plane_name = None
         
         self.kinect_trigger_info = []
-        self.capture_dist = 0.10
+        self.capture_dist = 0.015
         self.mean_val = 160
         self.l, self.w = self.load_wl()
 
@@ -99,6 +99,7 @@ class CheckPosition:
         self.timestamp = now()
         self.date = self.timestamp[:6] 
         self.whole_dir = osp.join(base_dir, self.date, self.timestamp)
+        os.makedirs(self.whole_dir,exist_ok=True)
 
         check_dir = osp.join(base_dir, "check" ,self.date, self.timestamp)
         os.makedirs(check_dir,exist_ok=True)
@@ -146,7 +147,7 @@ class CheckPosition:
             for name in trigger_plane:
                 pos_list = []
                 if t == 0:
-                    for i in [2, 4, 6, 8]:
+                    for i in [1, 4, 6, 8]:
                         pos_list.append([(i * l) / m,None] if name == "A" else [None, (i * w) / m])
                     re_list.append(pos_list)
                 else:

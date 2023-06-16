@@ -185,7 +185,6 @@ class SetStamp:
         self.timestamp = msg.data
         self.date = self.timestamp[:6]
         
-        logger.info(self.timestamp)
         
         check_dir = osp.join(base_dir, self.date, "check", self.timestamp)
         os.makedirs(check_dir, exist_ok=True)
@@ -211,7 +210,6 @@ class HikCapture(Thread):
         self.timestamp = s
         
         dir = self.get_latest_folder(base_dir)
-        logger.error(dir)
         
         self.hik_capture_caller = client.get_caller("hik_camera_rpc_queue")
         self.pubber = client.get_pubber("controller_event_queue")
@@ -261,7 +259,12 @@ class HikCapture(Thread):
         return req
 
     def get_latest_folder(self,directory):
-        folders = [folder for folder in os.listdir(directory) if osp.isdir(osp.join(directory, folder)) and folder != "check"]
+        folders = []
+        
+        for folder in os.listdir(directory):
+            if osp.isdir(osp.join(directory, folder)) and folder != "check":
+                folders += [folder]
+        # folders = [folder for folder in os.listdir(directory) if osp.isdir(osp.join(directory, folder)) and folder != "check"]
         latest_folder = max(folders, key=lambda folder: osp.getctime(osp.join(directory, folder)))
         return latest_folder
         
@@ -290,11 +293,11 @@ class HikCapture(Thread):
                 pos_list = []
 
                 if t == 0:
-                    for i in [2, 4, 6, 8]:
+                    for i in [1/2, 4, 6, 8]:
                         pos_list.append([(i * l) / m,None] if name == "A" else [None, (i * w) / m])
                     re_list.append(pos_list)
                 else:
-                    for i in [7, 6, 4, 2]:
+                    for i in [7, 6, 4, 1/2]:
                         pos_list.append([(i * l) / m,None] if name == "A" else [None,(i * w) / m])
                     re_list.append(pos_list)
         return re_list
@@ -329,12 +332,10 @@ class HikCapture(Thread):
 
                 if not is_success and flag:
                     gap = float(cur_pose[info["acc_control"]] - info["trigger_pos"][info["acc_control"]])
-                    logger.error(gap)
-                    if abs(gap) < 0.10:
+                    # logger.error(gap)
+                    if abs(gap) < 0.02:
                         date = self.get_latest_folder(base_dir)
                         timestamp = self.get_latest_folder(osp.join(base_dir,date))
-                        logger.info(date)
-                        logger.info(timestamp)
                         
                         dir_name = info["plane_name"] + str(info["trigger_name"])
                         whole_path = osp.join(base_dir, date, timestamp, dir_name)
@@ -361,7 +362,7 @@ class HikCapture(Thread):
                         # self.control_rpc.send_res(self.send_hik_result(info["plane_name"],str(info["trigger_name"]),whole_path))
                         
                     else:
-                        print("not trigger pos") 
+                        ...
                         
 
 
@@ -435,11 +436,11 @@ class RobotControl(Thread):
 
     def get_curr_v(self, gap=None):
         if gap is None:
-            return 180
+            return 200
         if abs(gap) < 5:
-            return 160
-        else:
             return 180
+        else:
+            return 200
 
     def update_task(self, task):
         self.curr_task = task
@@ -468,7 +469,7 @@ class RobotControl(Thread):
 
                 __curr_location_0 = pose['pos'][0] - self.curr_task['end'][0]
                 __curr_location_1 = pose['pos'][1] - self.curr_task['end'][1]
-                if abs(__curr_location_0) + abs(__curr_location_1) < 0.05:
+                if abs(__curr_location_0) + abs(__curr_location_1) < 0.04:
                     self.stop()
                     self.is_updated = False
                     logger.info('to final!')
